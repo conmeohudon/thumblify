@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom"
-import { colorSchemes, dummyThumbnails, type AspectRatio, type IThumbnail, type ThumbnailStyle } from "../assets/assets";
+import { colorSchemes, type AspectRatio, type IThumbnail, type ThumbnailStyle } from "../assets/assets";
 import SoftBackDrop from "../components/SoftBackDrop";
 import AspectRatioSelector from "../components/AspectRatioSelector";
 import StyleSelector from "../components/StyleSelector";
@@ -31,20 +31,36 @@ const Generate = () => {
   const handleGenerate = async () => {
     if (!isLoggedIn) return toast.error('Please login to generate thumbnails')
     if (!title.trim()) return toast.error('Title is required')
+    
     setLoading(true)
-    const api_payload = {
-      title,
-      prompt: additionalDetails,
-      style,
-      aspect_ratio: aspectRatio,
-      color_scheme: colorSchemeId,
-      text_overlay: true,
-    }
+    
+    try {
+      const api_payload = {
+        title,
+        prompt: additionalDetails,
+        style,
+        aspect_ratio: aspectRatio,
+        color_scheme: colorSchemeId,
+        text_overlay: true,
+      }
 
-    const { data } = await api.post('/api/thumbnail/generate', api_payload);
-    if (data.thumbnails) {
-      navigate('/generate/' + data.thumbnails._id);
-      toast.success(data.message)
+      // Đợi API trả về (sau khi đã generate xong ảnh)
+      const { data } = await api.post('/api/thumbnail/generate', api_payload);
+      
+      if (data.thumbnails) {
+        // Set thumbnail data trước
+        setThumbnail(data.thumbnails)
+        
+        // Navigate sau khi đã có ảnh
+        navigate('/generate/' + data.thumbnails._id);
+        toast.success(data.message)
+        
+        // Tắt loading
+        setLoading(false)
+      }
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error?.response?.data?.message || 'Failed to generate thumbnail')
       setLoading(false)
     }
   }
@@ -52,35 +68,35 @@ const Generate = () => {
   const fetchThumbnail = async () => {
     try {
       const { data } = await api.get(`/api/user/thumbnail/${id}`);
-      setThumbnail(data?.thumbnails as IThumbnail);
-      setLoading(!data?.thumbnails?.image_url);
-      setAdditionalDetails(data?.thumbnails?.user_prompt)
-      setTitle(data?.thumbnails?.title)
-      setColorSchemeId(data?.thumbnails?.color_scheme)
-      setASpectRatio(data?.thumbnails?.aspect_ratio)
-      setStyle(data?.thumbnails?.style)
+      const thumbnailData = data?.thumbnails as IThumbnail;
+      
+      setThumbnail(thumbnailData);
+      setAdditionalDetails(thumbnailData?.user_prompt || '')
+      setTitle(thumbnailData?.title || '')
+      setColorSchemeId(thumbnailData?.color_scheme || colorSchemes[0].id)
+      setASpectRatio(thumbnailData?.aspect_ratio || '16:9')
+      setStyle(thumbnailData?.style || 'Bold & Graphic')
+      setLoading(false)
 
     } catch (error: any) {
       console.log(error);
       toast.error(error?.response?.data?.message || error.message)
+      setLoading(false)
     }
   }
 
+  // Fetch thumbnail khi vào trang với ID có sẵn (từ My Generations)
   useEffect(() => {
     if (isLoggedIn && id) {
       fetchThumbnail()
     }
-    if (id && loading && isLoggedIn) {
-      const interval = setInterval(() => {
-        fetchThumbnail()
-      }, 5000);
-      return () => clearInterval(interval)
-    }
-  }, [id, loading, isLoggedIn])
+  }, [id, isLoggedIn])
 
+  // Reset thumbnail khi không có ID
   useEffect(() => {
     if (!id && thumbnail) {
       setThumbnail(null)
+      setLoading(false)
     }
   }, [pathname])
 
@@ -104,15 +120,25 @@ const Generate = () => {
                       Title or Topic
                     </label>
 
-                    <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={100} placeholder="e.g., 10 Tips for Better Sleep" className="w-full px-4 py-3 rounded-lg border border-white/12 bg-black/20 text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-pink-500" />
+                    <input 
+                      type="text" 
+                      value={title} 
+                      onChange={(e) => setTitle(e.target.value)} 
+                      maxLength={100} 
+                      placeholder="e.g., 10 Tips for Better Sleep" 
+                      className="w-full px-4 py-3 rounded-lg border border-white/12 bg-black/20 text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-pink-500" 
+                    />
                     <div className="flex justify-end">
-                      <span>{title.length}/100</span>
+                      <span className="text-xs text-zinc-400">{title.length}/100</span>
                     </div>
                   </div>
+                  
                   {/* AspectRatioSelector */}
                   <AspectRatioSelector value={aspectRatio} onChange={setASpectRatio} />
+                  
                   {/* StyleSelector */}
                   <StyleSelector value={style} onChange={setStyle} isOpen={styleDropdownOpen} setIsOpen={setStyleDropdownOpen} />
+                  
                   {/* ColorSchemeSelector */}
                   <ColorSchemeSelector value={colorSchemeId} onChange={setColorSchemeId} />
 
@@ -121,18 +147,29 @@ const Generate = () => {
                     <label className="block text-sm font-medium">
                       Additional Prompts <span className="text-zinc-400 text-xs">(optional)</span>
                     </label>
-                    <textarea value={additionalDetails} onChange={(e) => setAdditionalDetails(e.target.value)} rows={3} placeholder="Add any specific elements, mood, or style preferences..." className="w-full px-4 py-3 rounded-lg border border-white/10 bg-white/6 text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-pink-500 resize-none"></textarea>
+                    <textarea 
+                      value={additionalDetails} 
+                      onChange={(e) => setAdditionalDetails(e.target.value)} 
+                      rows={3} 
+                      placeholder="Add any specific elements, mood, or style preferences..." 
+                      className="w-full px-4 py-3 rounded-lg border border-white/10 bg-white/6 text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-pink-500 resize-none"
+                    ></textarea>
                   </div>
                 </div>
+                
                 {/* button */}
                 {!id && (
-                  <button onClick={handleGenerate} className="text-[15px] w-full py-3.5 rounded-xl font-medium bg-linear-to-b from-pink-500 to-pink-600 hover:from-pink-700 disabled:cursor-not-allowed transition-colors">
+                  <button 
+                    onClick={handleGenerate} 
+                    disabled={loading}
+                    className="text-[15px] w-full py-3.5 rounded-xl font-medium bg-gradient-to-b from-pink-500 to-pink-600 hover:from-pink-600 hover:to-pink-700 disabled:from-pink-500/50 disabled:to-pink-600/50 disabled:cursor-not-allowed transition-all"
+                  >
                     {loading ? 'Generating...' : 'Generate Thumbnail'}
                   </button>
                 )}
               </div>
-
             </div>
+            
             {/* right panel */}
             <div>
               <div className="p-6 rounded-2xl bg-white/8 border border-white/10 shadow-xl">
@@ -142,11 +179,8 @@ const Generate = () => {
             </div>
 
           </div>
-
         </main>
-
       </div>
-
     </>
   )
 }
