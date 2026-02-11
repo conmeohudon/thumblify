@@ -20,30 +20,34 @@ const app = express();
 app.disable('etag');
 
 app.use(cors({
-    origin: ['http://localhost:5173', 'http://localhost:3000', 'https://thumblifyy.vercel.app'],
+    origin: [
+        "http://localhost:5173",
+        'http://localhost:3000',
+        "https://thumblifyy.vercel.app"
+    ],
     credentials: true
-}))
+}));
 
 app.use(express.json())
 
 app.set('trust proxy', 1)
 
 app.use(session({
+    name: "connect.sid",
     secret: process.env.SESSION_SECRET as string,
     resave: false,
     saveUninitialized: false,
-    cookie: {
-        maxAge: 1000 * 60 * 60 * 24 * 7,
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-        path: '/'
-
-    },
+    proxy: true,
     store: MongoStore.create({
         mongoUrl: process.env.MONGODB_URL as string,
-        collectionName: 'sessions'
-    })
+        collectionName: "sessions"
+    }),
+    cookie: {
+        httpOnly: true,
+        secure: true,    
+        sameSite: "none",  
+        maxAge: 1000 * 60 * 60 * 24 * 7
+    },
 }))
 
 app.get('/', (req: Request, res: Response) => {
